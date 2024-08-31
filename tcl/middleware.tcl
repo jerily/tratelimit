@@ -37,12 +37,12 @@ proc ::tratelimit::middleware::enter { ctx req } {
     variable routes
 
     set current_time [clock milliseconds]
-    set window_start [expr { $current_time - $window_millis }]
 
     set addr [dict get $ctx addr]
 
     # check global limit by ip address
     set key "__RL__/__GLOBAL__/ip/$addr"
+    set window_start [expr { $current_time - $window_millis }]
     set requests_made [${store}::get_requests_made $key $window_start $current_time]
     if { $requests_made >= $limit } {
         set res [::twebserver::build_response 429 text/plain "Too Many Requests"]
@@ -61,15 +61,17 @@ proc ::tratelimit::middleware::enter { ctx req } {
         set route_limit [dict get $route_config limit]
 
         set route_key "__RL__/${route_name}/ip/$addr"
-        set route_requests_made [${store}::get_requests_made $route_key $window_start $current_time]
+        set route_window_start [expr { $current_time - $route_window_millis }]
+        set route_requests_made [${store}::get_requests_made $route_key $route_window_start $current_time]
         if { $route_requests_made >= $route_limit } {
+            #puts route_limit_exceeded,$route_requests_made>=$route_limit
             set res [::twebserver::build_response 429 text/plain "Too Many Requests"]
             set res [::twebserver::add_header $res "Retry-After" [expr { $route_window_millis / 1000 }]]
             return -code error -options $res
         }
 
         puts route=$route_name,route_requests_made=$route_requests_made,route_limit=$route_limit
-        ${store}::add_request $route_key $window_start $current_time
+        ${store}::add_request $route_key $route_window_start $current_time
 
     }
 
