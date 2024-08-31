@@ -8,12 +8,26 @@ package require treqmon
 
 set tratelimit_config {
     window_millis 60000
-    limit 10
+    limit 100
     store {
         valkeystore {
             host "localhost"
             port 6379
             password "foobared"
+        }
+    }
+    routes {
+        get_index {
+            window_millis 10000
+            limit 10
+        }
+        get_stats {
+            window_millis 10000
+            limit 5
+        }
+        get_catchall {
+            window_millis 10000
+            limit 15
         }
     }
 }
@@ -39,50 +53,11 @@ set init_script {
         -enter_proc ::tratelimit::middleware::enter \
         $router
 
-    ::twebserver::add_route -prefix $router GET /(css|js|assets|bundle)/ get_assets_handler
-    ::twebserver::add_route $router GET "/stats" get_stats_handler
-    ::twebserver::add_route $router GET "*" get_catchall_handler
+    ::twebserver::add_route -name get_index $router GET "/" get_index_handler
+    ::twebserver::add_route -name get_stats $router GET "/stats" get_stats_handler
+    ::twebserver::add_route -name get_catchall $router GET "*" get_catchall_handler
 
     #interp alias {} process_conn {} $router
-
-
-    proc path_join {args} {
-        set rootdir [file normalize [::twebserver::get_rootdir]]
-        set path ""
-        foreach arg $args {
-            set parts [file split $arg]
-            foreach part $parts {
-                if { $part eq {..} } {
-                    error "path_join: path \"$arg\" contains \"..\""
-                }
-                append path "/" $part
-            }
-        }
-        set normalized_path [file normalize $path]
-        if { [string range $normalized_path 0 [expr { [string length $rootdir] - 1}]] ne $rootdir } {
-            error "path_join: path \"$normalized_path\" is not under rootdir \"$rootdir\""
-        }
-        return $normalized_path
-    }
-
-    proc get_assets_handler {ctx req} {
-        set path [dict get $req path]
-        set dir [file normalize [::thtml::get_rootdir]]
-        set filepath [path_join $dir public $path]
-    #    puts filepath=$filepath
-        set ext [file extension $filepath]
-        if { $ext eq {.css} } {
-            set mimetype text/css
-        } elseif { $ext eq {.js} } {
-            set mimetype application/javascript
-        } elseif { $ext eq {.svg} } {
-            set mimetype image/svg+xml
-        } else {
-            error "get_assets_handler: unsupported extension \"$ext\""
-        }
-        set res [::twebserver::build_response -return_file 200 $mimetype $filepath]
-        return $res
-    }
 
     proc get_stats_handler {ctx req} {
         set data [dict merge $req [list bundle_js_url_prefix "/bundle" bundle_css_url_prefix "/bundle"]]
@@ -91,9 +66,15 @@ set init_script {
         return $res
     }
 
-    proc get_catchall_handler {ctx req} {
+    proc get_index_handler {ctx req} {
         set html "Hello [dict get $req path]<br /><br /><a href=\"/stats\">Stats</a>"
         set res [::twebserver::build_response 200 "text/html; charset=utf-8" $html]
+        return $res
+    }
+
+    proc get_catchall_handler {ctx req} {
+        set html "Hello [dict get $req path]<br /><br />. Page Not Found."
+        set res [::twebserver::build_response 404 "text/html; charset=utf-8" $html]
         return $res
     }
 
