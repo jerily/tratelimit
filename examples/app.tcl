@@ -3,12 +3,8 @@
 # SPDX-License-Identifier: MIT.
 
 package require twebserver
-package require treqmon
-
 
 set tratelimit_config {
-    window_millis 60000
-    limit 100
     store {
         valkeystore {
             host "localhost"
@@ -16,18 +12,34 @@ set tratelimit_config {
             password "foobared"
         }
     }
-    routes {
-        get_index {
+    global_limits {
+        by_ip {
             window_millis 10000
             limit 10
         }
-        get_stats {
-            window_millis 10000
+        by_session {
+            window_millis 60000
             limit 5
         }
+    }
+    route_limits {
+        get_index {
+            by_ip {
+                window_millis 10000
+                limit 10
+            }
+        }
+        get_stats {
+            by_ip {
+                window_millis 10000
+                limit 5
+            }
+        }
         get_catchall {
-            window_millis 10000
-            limit 15
+            by_ip {
+                window_millis 10000
+                limit 15
+            }
         }
     }
 }
