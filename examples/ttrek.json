@@ -1,0 +1,17 @@
+{
+  "name": "treqmon-example",
+  "version": "1.0.0",
+  "scripts": {
+
+  },
+  "dependencies": {
+    "tjson": "^1.0.25",
+    "twebserver": "^1.47.51",
+    "thtml": "^1.5.0",
+    "tdom": "^0.9.4",
+    "thread": ">=2.8.0"
+  },
+  "devDependencies": {
+
+  }
+}

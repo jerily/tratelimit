@@ -1,0 +1,11 @@
+.idea
+cmake-build-debug
+build
+models
+*.o
+*.so
+node_modules
+cache
+bundle
+logs
+ttrek-venv
