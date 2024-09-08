@@ -61,7 +61,7 @@ proc ::tratelimit::middleware::rate_limit {config key current_time error_resVar}
         return 1
     }
 
-    # puts key=$key,requests_made=$requests_made,limit=$limit
+    puts key=$key,requests_made=$requests_made,limit=$limit
     ${store}::add_request $key $window_start $current_time
 
     return 0
