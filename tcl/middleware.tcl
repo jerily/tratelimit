@@ -27,6 +27,22 @@ proc ::tratelimit::middleware::init {config_dict} {
 
     array set global_limits [dict get $config global_limits]
     array set route_limits [dict get $config route_limits]
+
+    set tsession_present_version ""
+    catch { set tsession_present_version [package present tsession] }
+    set tsession_present [expr { $tsession_present_version ne "" }]
+
+    if { !$tsession_present } {
+        if { [info exists global_limits(by_session)] } {
+            puts "WARNING: tsession not present, session rate limiting will not work"
+        }
+        foreach route_name [array names route_limits] {
+            array set given_route_limits $route_limits($route_name)
+            if { [info exists given_route_limits(by_session)] } {
+                puts "WARNING: tsession not present, route $route_name session rate limiting will not work"
+            }
+        }
+    }
 }
 
 proc ::tratelimit::middleware::rate_limit {config key current_time error_resVar} {
