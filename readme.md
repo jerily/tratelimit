@@ -5,6 +5,7 @@ Rate limiting middleware for [twebserver](https://github.com/jerily/twebserver).
 ## Prerequisites
 
 - [twebserver](https://github.com/jerily/twebserver) (version 1.47.53 and above)
+- [valkey-tcl](https://github.com/jerily/valkey-tcl) (version 1.0.0 and above)
 
 ## Installation
 
