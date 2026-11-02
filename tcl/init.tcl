@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2024 Neofytos Dimitriou (neo@jerily.cy)
 # SPDX-License-Identifier: MIT.
 
-package provide tratelimit 1.0.0
+package provide tratelimit 1.0.1
 
 set dir [file dirname [info script]]
 
