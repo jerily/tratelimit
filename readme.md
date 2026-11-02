@@ -2,10 +2,14 @@
 
 Rate limiting middleware for [twebserver](https://github.com/jerily/twebserver).
 
+## Principles
+
+Keep storage in the configured store; pass connection settings to valkey-tcl.
+
 ## Prerequisites
 
 - [twebserver](https://github.com/jerily/twebserver) (version 1.47.53 and above)
-- [valkey-tcl](https://github.com/jerily/valkey-tcl) (version 1.0.0 and above)
+- [valkey-tcl](https://github.com/jerily/valkey-tcl) (version 1.0.1 and above)
 
 ## Installation
 
@@ -64,3 +68,23 @@ The following are supported configuration options:
         }
     }
 ```
+
+## TLS
+
+For `valkeystore`, set `ssl true`, `username` and `password`. Optional settings:
+`ssl_ca_file`, `ssl_cert_file`, `ssl_key_file`, and `timeout` (milliseconds).
+Build valkey-tcl and libvalkey with `-DENABLE_SSL=ON`.
+
+## Security
+
+### Surface
+
+Valkey connections and stored request data.
+
+### Protections
+
+With `ssl true`, valkey-tcl verifies certificates and server identity, including reconnects.
+
+### Pending
+
+Configure TLS and credentials for your deployment.

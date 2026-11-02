@@ -1,0 +1,10 @@
+{
+  "name": "tratelimit",
+  "version": "1.0.1",
+  "scripts": {},
+  "dependencies": {
+    "valkey-tcl": ">=1.0.1",
+    "twebserver": ">=1.47.53"
+  },
+  "devDependencies": {}
+}
