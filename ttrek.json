@@ -1,10 +1,14 @@
 {
   "name": "tratelimit",
-  "version": "1.0.1",
-  "scripts": {},
+  "version": "1.1.0",
+  "scripts": {
+    "test": {"file": "bin/run.sh", "args": ["tests/all.tcl"]},
+    "example": {"file": "bin/run.sh", "args": ["example/app.tcl"]}
+  },
   "dependencies": {
     "valkey-tcl": ">=1.0.1",
-    "twebserver": ">=1.47.53"
+    "twebserver": ">=1.47.53",
+    "tpathexp": "^1.2.0"
   },
   "devDependencies": {}
 }

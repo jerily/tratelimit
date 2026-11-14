@@ -1,14 +1,14 @@
 {
-  "name": "treqmon-example",
+  "name": "tratelimit-example",
   "version": "1.0.0",
   "scripts": {
 
   },
   "dependencies": {
     "tjson": "^1.0.25",
-    "twebserver": "^1.47.51",
-    "thtml": "^1.5.0",
-    "tdom": "^0.9.4",
+    "twebserver": "^1.47.53",
+    "tratelimit": "^1.1.0",
+    "tpathexp": "^1.2.0",
     "thread": ">=2.8.0"
   },
   "devDependencies": {

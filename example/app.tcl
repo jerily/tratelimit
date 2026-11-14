@@ -47,44 +47,40 @@ set tratelimit_config {
 set init_script {
     package require twebserver
     package require tratelimit
-    package require thtml
-
-    ::thtml::init [dict create \
-        debug 1 \
-        cache 1 \
-        rootdir [::twebserver::get_rootdir] \
-        bundle_outdir [file join [::twebserver::get_rootdir] public bundle]]
+    package require tpathexp 1.2.0
 
     set config_dict [::twebserver::get_config_dict]
 
     ::tratelimit::init_middleware [dict get $config_dict tratelimit]
 
-    ::twebserver::create_router -command_name process_conn router
-
-    ::twebserver::add_middleware \
-        -enter_proc ::tratelimit::middleware::enter \
-        $router
-
-    ::twebserver::add_route -name get_index $router GET "/" get_index_handler
-    ::twebserver::add_route -name get_stats $router GET "/stats" get_stats_handler
-    ::twebserver::add_route -name get_catchall $router GET "*" get_catchall_handler
-
-    #interp alias {} process_conn {} $router
-
-    proc get_stats_handler {ctx req} {
-        set data [dict merge $req [list bundle_js_url_prefix "/bundle" bundle_css_url_prefix "/bundle"]]
-        set html [::thtml::renderfile app.thtml $data]
-        set res [::twebserver::build_response 200 "text/html; charset=utf-8" $html]
-        return $res
+    set router [::tpathexp::router]
+    ::tratelimit::mount $router
+    foreach {path name handler} {
+        / get_index get_index_handler
+        /stats get_stats get_stats_handler
+        /:path(.*) get_catchall get_catchall_handler
+    } {
+        $router add GET $path $handler -strict true \
+            -enter_proc [list ::tratelimit::middleware::enter_route $name]
     }
 
-    proc get_index_handler {ctx req} {
+    proc process_conn {ctx req} {
+        dict set req method [dict get $req httpMethod]
+        set res [$::router dispatch $req $ctx]
+        ::twebserver::return_response [dict get $ctx conn] $res
+    }
+
+    proc get_stats_handler {req ctx params} {
+        return [::twebserver::build_response 200 text/plain "This route allows five requests per ten seconds."]
+    }
+
+    proc get_index_handler {req ctx params} {
         set html "Hello [dict get $req path]<br /><br /><a href=\"/stats\">Stats</a>"
         set res [::twebserver::build_response 200 "text/html; charset=utf-8" $html]
         return $res
     }
 
-    proc get_catchall_handler {ctx req} {
+    proc get_catchall_handler {req ctx params} {
         set html "Hello [dict get $req path]<br /><br />. Page Not Found."
         set res [::twebserver::build_response 404 "text/html; charset=utf-8" $html]
         return $res
@@ -100,11 +96,10 @@ set config_dict [dict create \
     conn_timeout_millis 10000 \
     tratelimit $tratelimit_config]
 
-set server_handle [::twebserver::create_server -with_router $config_dict process_conn $init_script]
+set server_handle [::twebserver::create_server $config_dict process_conn $init_script]
 ::twebserver::listen_server -http -num_threads 4 $server_handle 8080
 
 puts "Server is running, go to http://localhost:8080/"
 
 ::twebserver::wait_signal
 ::twebserver::destroy_server $server_handle
-::treqmon::shutdown_main
