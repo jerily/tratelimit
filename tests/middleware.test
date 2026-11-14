@@ -1,0 +1,86 @@
+package require tcltest 2
+namespace import ::tcltest::test
+package require tratelimit
+
+namespace eval ::tratelimit::middleware::teststore {
+    variable counts {}
+    proc init {config} {variable counts; set counts {}}
+    proc get_requests_made {key start end} {
+        variable counts
+        if {[dict exists $counts $key]} {return [dict get $counts $key]}
+        return 0
+    }
+    proc add_request {key start now} {variable counts; dict incr counts $key}
+}
+proc configure_limits {global routes} {
+    ::tratelimit::init_middleware [dict create store {teststore {}} global_limits $global route_limits $routes]
+}
+proc ok {request context params} {dict create statusCode 200 headers {} body ok}
+proc request {router path {session {}} {addr 127.0.0.1}} {
+    $router dispatch [dict create method GET path $path session $session] [dict create addr $addr]
+}
+
+test middleware-route-ip {Named routes share a bucket across captures without double-counting global limits} -setup {
+    configure_limits {by_ip {window_millis 60000 limit 10}} {item {by_ip {window_millis 60000 limit 1}}}
+    set router [::tpathexp::router]
+    ::tratelimit::mount $router
+    $router add GET /items/:id ok -enter_proc {::tratelimit::middleware::enter_route item}
+    $router add GET /other ok -enter_proc {::tratelimit::middleware::enter_route other}
+} -body {
+    set first [request $router /items/1]
+    set second [request $router /items/2]
+    set other [request $router /other]
+    list [dict get $first statusCode] [dict get $second statusCode] [dict get $second headers Retry-After] \
+        [dict get $other statusCode] [dict get $::tratelimit::middleware::teststore::counts __RL__/__GLOBAL__/ip/127.0.0.1]
+} -cleanup {$router destroy} -result {200 429 60 200 3}
+
+test middleware-global-session {Session limits work without a login flag and across IP addresses} -setup {
+    configure_limits {by_session {window_millis 60000 limit 1}} {}
+    set router [::tpathexp::router]
+    ::tratelimit::mount $router
+    $router add GET / ok
+} -body {
+    list [dict get [request $router / {id one}] statusCode] \
+        [dict get [request $router / {id one} 127.0.0.2] statusCode] \
+        [dict get [request $router / {id two}] statusCode] \
+        [dict get [request $router /] statusCode]
+} -cleanup {$router destroy} -result {200 429 200 200}
+
+test middleware-route-session {Route session limits are independent of other routes and anonymous requests} -setup {
+    configure_limits {} {limited {by_session {window_millis 60000 limit 1}}}
+    set router [::tpathexp::router]
+    ::tratelimit::mount $router
+    $router add GET /limited ok -enter_proc {::tratelimit::middleware::enter_route limited}
+    $router add GET /other ok -enter_proc {::tratelimit::middleware::enter_route other}
+} -body {
+    list [dict get [request $router /limited {id one}] statusCode] \
+        [dict get [request $router /limited {id one}] statusCode] \
+        [dict get [request $router /other {id one}] statusCode] \
+        [dict get [request $router /limited] statusCode]
+} -cleanup {$router destroy} -result {200 429 200 200}
+
+test middleware-unmatched {Global limits include 404 and 405 without requiring route_name} -setup {
+    configure_limits {by_ip {window_millis 60000 limit 2}} {}
+    set router [::tpathexp::router]
+    ::tratelimit::mount $router
+    $router add POST /known ok
+} -body {
+    list [dict get [request $router /missing] statusCode] \
+        [dict get [request $router /known] statusCode] [dict get [request $router /missing] statusCode]
+} -cleanup {$router destroy} -result {404 405 429}
+
+test middleware-legacy {Existing twebserver named-route contexts enforce custom limits} -setup {
+    configure_limits {} {legacy {by_ip {window_millis 60000 limit 1}}}
+} -body {
+    ::tratelimit::middleware::enter {addr 127.0.0.1 route_name legacy} {}
+    catch {::tratelimit::middleware::enter {addr 127.0.0.1 route_name legacy} {}} result options
+    dict get $options statusCode
+} -result 429
+
+test middleware-reconfigure {Replacing limit dictionaries removes old limits} -body {
+    configure_limits {by_ip {window_millis 60000 limit 0}} {old {by_ip {window_millis 60000 limit 0}}}
+    configure_limits {} {}
+    ::tratelimit::middleware::enter {addr 127.0.0.1 route_name old} {path /}
+} -result {path /}
+
+::tcltest::cleanupTests

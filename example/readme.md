@@ -1,17 +1,20 @@
-# Example for treqmon
+# tratelimit example
 
 ## Requirements
 
-- twebserver 1.47.49 or later
-- thtml
-- tjson
+- twebserver 1.47.53 or later
+- tpathexp 1.2.0 or later
+- tratelimit and its Valkey store dependencies
+- A local Valkey server configured as in `app.tcl`
 
-## Compile Templates
+## Run
 
 ```bash
-cd treqmon
-tclsh9.0 $THTML_DIR/bin/thtml-compiledir.tcl \
-  tcl \
-  $(pwd)/example/ \
-  $(pwd)/example/www/
+ttrek run -script example
 ```
+
+Run from the package root after installing dependencies, or run `tclsh app.tcl`
+from this directory. Open `/stats` on port 8080: its named route hook allows five
+requests per ten seconds before returning HTTP 429. The global IP limit applies
+across routes. This example does not create sessions or cookies; session limits
+only apply when another middleware supplies a session ID.

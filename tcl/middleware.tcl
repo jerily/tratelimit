@@ -25,6 +25,8 @@ proc ::tratelimit::middleware::init {config_dict} {
         ${store}::init $store_config
     }
 
+    array unset global_limits
+    array unset route_limits
     array set global_limits [dict get $config global_limits]
     array set route_limits [dict get $config route_limits]
 
@@ -37,8 +39,7 @@ proc ::tratelimit::middleware::init {config_dict} {
             puts "WARNING: tsession not present, session rate limiting will not work"
         }
         foreach route_name [array names route_limits] {
-            array set given_route_limits $route_limits($route_name)
-            if { [info exists given_route_limits(by_session)] } {
+            if { [dict exists $route_limits($route_name) by_session] } {
                 puts "WARNING: tsession not present, route $route_name session rate limiting will not work"
             }
         }
@@ -61,7 +62,6 @@ proc ::tratelimit::middleware::rate_limit {config key current_time error_resVar}
         return 1
     }
 
-    puts key=$key,requests_made=$requests_made,limit=$limit
     ${store}::add_request $key $window_start $current_time
 
     return 0
@@ -69,25 +69,22 @@ proc ::tratelimit::middleware::rate_limit {config key current_time error_resVar}
 
 proc ::tratelimit::middleware::enter { ctx req } {
     variable global_limits
-    variable route_limits
 
     set current_time [clock milliseconds]
 
-    set addr [dict get $ctx addr]
     set session_id ""
-    if { [dict exists $req loggedin] } {
+    if { [dict exists $req session id] } {
         set session_id [dict get $req session id]
     }
 
     # check global limits by ip address
     if { [info exists global_limits(by_ip)] } {
+        set addr [dict get $ctx addr]
         set key "__RL__/__GLOBAL__/ip/$addr"
         if { [rate_limit $global_limits(by_ip) $key $current_time error_res] } {
             return -code error -options $error_res
         }
     }
-    return $req
-
     # check global limits by session
     if { $session_id ne {} && [info exists global_limits(by_session)] } {
         set key "__RL__/__GLOBAL__/sid/$session_id"
@@ -96,12 +93,29 @@ proc ::tratelimit::middleware::enter { ctx req } {
         }
     }
 
-    # check route limit by ip address
-    set route_name [dict get $ctx route_name]
+    # Existing twebserver routers supply the route name in the context.
+    if { [dict exists $ctx route_name] } {
+        return [enter_route [dict get $ctx route_name] $ctx $req]
+    }
+    return $req
+}
+
+# Attach this command prefix with a route's -enter_proc. Global limits have
+# already run in the router middleware and must not be counted a second time.
+proc ::tratelimit::middleware::enter_route {route_name ctx req} {
+    variable route_limits
+
+    set current_time [clock milliseconds]
+    set session_id ""
+    if { [dict exists $req session id] } {
+        set session_id [dict get $req session id]
+    }
+
     if { [info exists route_limits($route_name)] } {
         array set given_route_limits $route_limits($route_name)
 
         if { [info exists given_route_limits(by_ip)] } {
+            set addr [dict get $ctx addr]
             set route_key "__RL__/${route_name}/ip/$addr"
             if { [rate_limit $given_route_limits(by_ip) $route_key $current_time error_res] } {
                 return -code error -options $error_res
