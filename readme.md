@@ -1,6 +1,7 @@
 # tratelimit
 
-Rate limiting middleware for [twebserver](https://github.com/jerily/twebserver).
+Rate limiting middleware for [tpathexp](https://github.com/jerily/tpathexp) routers
+and [twebserver](https://github.com/jerily/twebserver).
 
 ## Principles
 
@@ -10,6 +11,7 @@ Keep storage in the configured store; pass connection settings to valkey-tcl.
 
 - [twebserver](https://github.com/jerily/twebserver) (version 1.47.53 and above)
 - [valkey-tcl](https://github.com/jerily/valkey-tcl) (version 1.0.1 and above)
+- [tpathexp](https://github.com/jerily/tpathexp) (version 1.2.0 and above)
 
 ## Installation
 
@@ -25,8 +27,35 @@ make install
 The following are supported configuration options:
 
 * **global_limits** - Global rate limits.
-* **route_limits** - Route rate limits. Makes use of named routes in twebserver.
+* **route_limits** - Limits keyed by route enter-hook names (or named routes in twebserver).
 * **store** - The store to use together with its config. Default is "valkeystore".
+
+Initialize once per worker, mount global middleware once per router, and attach
+named limits when registering custom routes:
+
+```tcl
+package require tratelimit
+::tratelimit::init_middleware $config
+set router [::tpathexp::router]
+::tratelimit::mount $router
+$router add GET /stats stats_handler -strict true \
+    -enter_proc [list ::tratelimit::middleware::enter_route get_stats]
+# stats_handler receives request, context, and path parameters.
+set response [$router dispatch {method GET path /stats} {addr 127.0.0.1}]
+```
+
+Global limits also apply to 404/405 responses. Route hooks enforce only that
+route's limits, without counting global limits twice. Names absent from
+`route_limits` have only global limits. Both scopes support `by_ip` (trusted
+`context addr`) and `by_session` (`request session id`, when present). Mount
+session middleware before rate limiting so the session is available. Existing
+twebserver middleware uses `context route_name`. Rejections return HTTP 429 with
+`Retry-After` through normal router response handling.
+
+Mount treqmon before tratelimit to record rejected requests too.
+The file-based scripts in `ttrek.json` run tests and the HTTP example with
+`ttrek run -script test` and `ttrek run -script example`. Set `TCLSH` to select
+your interpreter. The example needs Valkey configured as in `example/app.tcl`.
 
 ## Example Configuration
 
