@@ -52,6 +52,13 @@ session middleware before rate limiting so the session is available. Existing
 twebserver middleware uses `context route_name`. Rejections return HTTP 429 with
 `Retry-After` through normal router response handling.
 
+The Valkey store (1.1.1+) checks and records requests atomically using the
+server clock, counts simultaneous arrivals separately, and expires idle buckets.
+Its ACL must permit EVAL, TIME, ZREMRANGEBYSCORE, ZCARD, ZADD and PEXPIRE.
+Custom shared stores should implement `consume key window_millis limit`, returning
+1 only when the request was recorded. The older `get_requests_made` / `add_request`
+interface remains available for single-interpreter stores, but is not atomic.
+
 Mount treqmon before tratelimit to record rejected requests too.
 The file-based scripts in `ttrek.json` run tests and the HTTP example with
 `ttrek run -script test` and `ttrek run -script example`. Set `TCLSH` to select

@@ -83,4 +83,14 @@ test middleware-reconfigure {Replacing limit dictionaries removes old limits} -b
     ::tratelimit::middleware::enter {addr 127.0.0.1 route_name old} {path /}
 } -result {path /}
 
+test middleware-retry-after {Subsecond and partial-second windows round up and rejections are not cacheable} -body {
+    set result {}
+    foreach window {1 999 1001} {
+        configure_limits [dict create by_ip [dict create window_millis $window limit 0]] {}
+        catch {::tratelimit::middleware::enter {addr 127.0.0.1} {}} message options
+        lappend result [dict get $options headers Retry-After] [dict get $options headers Cache-Control]
+    }
+    set result
+} -result {1 no-store 1 no-store 2 no-store}
+
 ::tcltest::cleanupTests

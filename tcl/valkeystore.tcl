@@ -57,10 +57,29 @@ proc ::tratelimit::middleware::valkeystore::shutdown {} {
 
 proc ::tratelimit::valkeystore::shutdown_main {} {}
 
+# Use the server clock and one atomic script for all workers. Random members
+# preserve every request, including multiple arrivals in the same millisecond.
+proc ::tratelimit::middleware::valkeystore::consume {key window_millis limit} {
+    variable valkey_client
+    set member [binary encode hex [::twebserver::random_bytes 16]]
+    $valkey_client EVAL {
+        local clock = redis.call('TIME')
+        local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+        local window = tonumber(ARGV[1])
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
+        if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[2]) then
+            return 0
+        end
+        redis.call('ZADD', KEYS[1], now, ARGV[3])
+        redis.call('PEXPIRE', KEYS[1], window)
+        return 1
+    } 1 $key $window_millis $limit $member
+}
+
 proc ::tratelimit::middleware::valkeystore::get_requests_made {key start_millis end_millis} {
     variable valkey_client
 
-    set requests_made [$valkey_client ZCOUNT $key $start_millis $end_millis]
+    set requests_made [$valkey_client ZCOUNT $key ($start_millis $end_millis]
     if { $requests_made eq {} } {
         return 0
     }
@@ -71,7 +90,9 @@ proc ::tratelimit::middleware::valkeystore::get_requests_made {key start_millis 
 proc ::tratelimit::middleware::valkeystore::add_request {key window_start current_time} {
     variable valkey_client
 
-    $valkey_client ZADD $key $current_time $current_time
+    set member [binary encode hex [::twebserver::random_bytes 16]]
+    $valkey_client ZADD $key $current_time $member
     $valkey_client ZREMRANGEBYSCORE $key -inf $window_start
+    $valkey_client PEXPIRE $key [expr {$current_time - $window_start}]
     return
 }

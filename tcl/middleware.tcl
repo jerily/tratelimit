@@ -53,16 +53,22 @@ proc ::tratelimit::middleware::rate_limit {config key current_time error_resVar}
     set limit [dict get $config limit]
 
     set window_start [expr { $current_time - $window_millis }]
-    set requests_made [${store}::get_requests_made $key $window_start $current_time]
-    if { $requests_made >= $limit } {
+    # Shared stores must decide and record atomically across workers. Retain
+    # the original interface for single-interpreter/custom stores.
+    if {[namespace which -command ${store}::consume] ne {}} {
+        set allowed [${store}::consume $key $window_millis $limit]
+    } else {
+        set allowed [expr {[${store}::get_requests_made $key $window_start $current_time] < $limit}]
+        if {$allowed} {${store}::add_request $key $window_start $current_time}
+    }
+    if {!$allowed} {
         upvar $error_resVar error_res
         set error_res [::twebserver::build_response 429 text/plain "Too Many Requests"]
-        set error_res [::twebserver::add_header $error_res "Retry-After" [expr { $window_millis / 1000 }]]
+        set error_res [::twebserver::add_header $error_res "Retry-After" [expr { ($window_millis + 999) / 1000 }]]
+        set error_res [::twebserver::add_header $error_res "Cache-Control" "no-store"]
 
         return 1
     }
-
-    ${store}::add_request $key $window_start $current_time
 
     return 0
 }
