@@ -1,6 +1,6 @@
 {
   "name": "tratelimit",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "scripts": {
     "test": {"file": "bin/run.sh", "args": ["tests/all.tcl"]},
     "example": {"file": "bin/run.sh", "args": ["example/app.tcl"]}
